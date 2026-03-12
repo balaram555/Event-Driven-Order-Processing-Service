@@ -5,20 +5,19 @@ services:
   mysql:
     image: mysql:8
     container_name: mysql
+    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: orders_db
+    ports:
+      - "3307:3306"   # ✅ changed port
     volumes:
       - ./db-init:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
+    restart: always
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -28,6 +27,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
+    restart: always
     depends_on:
       - zookeeper
     ports:
@@ -35,26 +35,36 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   order-api:
     build: ./order-api-service
     container_name: order-api
+    restart: always
     ports:
       - "8080:8080"
+    environment:
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: orders_db
+      KAFKA_BROKER: kafka:9092
     depends_on:
-      mysql:
-        condition: service_healthy
-      kafka:
-        condition: service_started
+      - mysql
+      - kafka
 
   order-processor:
     build: ./order-processor-service
     container_name: order-processor
+    restart: always
+    environment:
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: orders_db
+      KAFKA_BROKER: kafka:9092
     depends_on:
-      mysql:
-        condition: service_healthy
-      kafka:
-        condition: service_started
+      - mysql
+      - kafka
